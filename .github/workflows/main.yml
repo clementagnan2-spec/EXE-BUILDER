@@ -1,0 +1,84 @@
+name: Build ZipToExe
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      include_rust:
+        description: "Inclure Rust (~600 Mo)"
+        type: boolean
+        default: true
+      include_dotnet:
+        description: "Inclure le SDK .NET (~900 Mo)"
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write   # nécessaire pour publier une Release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compiler ZipToExe.exe
+        run: |
+          python -m pip install --upgrade pip pyinstaller
+          pyinstaller --onefile --windowed --noconfirm --name ZipToExe --paths src src/app.py
+
+      - name: Assembler le paquet tout-en-un
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $pkg = "package/ZipToExe-AllInOne"
+          New-Item -ItemType Directory -Force $pkg | Out-Null
+          Copy-Item dist/ZipToExe.exe $pkg
+          Copy-Item README.md $pkg
+          Copy-Item dist/ZipToExe.exe ZipToExe-Lite.exe
+
+          $p = @{ Out = "$pkg/tools" }
+          if ("${{ inputs.include_rust }}" -eq "false")   { $p.SkipRust = $true }
+          if ("${{ inputs.include_dotnet }}" -eq "false") { $p.SkipDotnet = $true }
+          ./scripts/fetch_toolchains.ps1 @p
+
+      - name: Compresser (découpe en volumes si > 1,9 Go)
+        shell: pwsh
+        run: |
+          7z a -tzip -mx=5 -mmt=on ZipToExe-AllInOne.zip ./package/ZipToExe-AllInOne | Out-Null
+          $size = (Get-Item ZipToExe-AllInOne.zip).Length
+          Write-Host ("Taille : {0:N0} Mo" -f ($size / 1MB))
+          if ($size -gt 1.9GB) {
+            Write-Warning "Trop gros pour une Release GitHub (2 Go) : découpe en volumes."
+            Remove-Item ZipToExe-AllInOne.zip
+            7z a -t7z -mx=3 -mmt=on -v1900m ZipToExe-AllInOne.7z ./package/ZipToExe-AllInOne | Out-Null
+          }
+          Get-ChildItem ZipToExe-AllInOne.* | Format-Table Name, Length
+
+      - name: Artefact – tout-en-un
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZipToExe-AllInOne
+          path: ZipToExe-AllInOne.*
+          compression-level: 0
+
+      - name: Artefact – version légère (sans outils)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZipToExe-Lite
+          path: ZipToExe-Lite.exe
+
+      - name: Release (sur tag vX.Y.Z)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ZipToExe-AllInOne.*
+            ZipToExe-Lite.exe
