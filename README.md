@@ -42,7 +42,7 @@ supplémentaires) fonctionnent sans Internet. Les **dépendances du projet** (`r
 1. Lancez `ZipToExe.exe`, choisissez le `.zip` du projet et le dossier de sortie.
 2. Cliquez sur **Compiler en .exe**.
 
-Options : nom du `.exe`, fichier d'entrée (si la détection ne convient pas), icône `.ico` (Python), mode sans console.
+Options : nom du `.exe`, fichier d'entrée (si la détection ne convient pas), icône `.ico` (Python), et **fenêtre console** : *Auto* (par défaut, détecte les applications graphiques Tkinter, PyQt, PySide, wx, Kivy, pygame… et masque alors le CMD), *Masquer* ou *Afficher*.
 
 | Détecté via | Méthode |
 |---|---|

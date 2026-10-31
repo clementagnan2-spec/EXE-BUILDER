@@ -33,7 +33,7 @@ class Options:
     name: str = "app"       # nom du .exe final
     entry: str = ""         # fichier d'entrée (optionnel, Python/Node)
     icon: str = ""          # fichier .ico (optionnel, Python)
-    windowed: bool = False  # sans fenêtre console
+    windowed: Optional[bool] = None  # sans console : True / False / None = détection auto
 
 
 @dataclass
@@ -207,13 +207,43 @@ def build_python(c: Ctx) -> None:
            "--name", c.opts.name, "--distpath", dist,
            "--workpath", c.work / "pybuild", "--specpath", c.work,
            "--paths", c.root]
-    if c.opts.windowed:
+    windowed = c.opts.windowed
+    if windowed is None:
+        windowed = detect_gui(c.root)
+        c.log("Interface graphique détectée → sans console." if windowed
+              else "Aucune interface graphique détectée → avec console.")
+    if windowed:
         cmd.append("--windowed")
     if c.opts.icon:
         cmd += ["--icon", c.opts.icon]
     cmd.append(entry)
     run(cmd, c.log, cwd=c.root)
     stage_files([p for p in dist.iterdir() if p.is_file()], c.stage)
+
+
+GUI_MODULES = {"tkinter", "Tkinter", "customtkinter", "ttkbootstrap", "PyQt5", "PyQt6",
+               "PySide2", "PySide6", "wx", "kivy", "pygame", "flet", "dearpygui",
+               "pyglet", "toga", "webview", "pystray"}
+_IMPORT_RE = re.compile(r"^\s*(?:from|import)\s+([A-Za-z_]\w*)", re.M)
+
+
+def detect_gui(root: Path) -> bool:
+    """True si le projet Python utilise une bibliothèque d'interface graphique."""
+    n = 0
+    for dp, fns in walk(root, 6):
+        for f in fns:
+            if not f.endswith((".py", ".pyw")):
+                continue
+            n += 1
+            if n > 300:
+                return False
+            try:
+                text = (dp / f).read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            if GUI_MODULES & set(_IMPORT_RE.findall(text)):
+                return True
+    return False
 
 
 def find_python_entry(root: Path, hint: str) -> Path:

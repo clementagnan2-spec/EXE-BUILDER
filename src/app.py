@@ -12,6 +12,7 @@ from compiler import BuildError, Options, compile_zip
 from toolchain import setup_env, tools_dir
 
 APP_TITLE = "ZipToExe – Compilateur de projets ZIP en .exe"
+CONSOLE_CHOICES = ["Auto (détecter)", "Masquer la console", "Afficher la console"]
 
 
 class App(tk.Tk):
@@ -28,7 +29,7 @@ class App(tk.Tk):
         self.name_var = tk.StringVar()
         self.entry_var = tk.StringVar()
         self.icon_var = tk.StringVar()
-        self.win_var = tk.BooleanVar(value=False)
+        self.win_var = tk.StringVar(value=CONSOLE_CHOICES[0])
 
         self._build_ui()
         self.after(100, self._poll)
@@ -59,8 +60,9 @@ class App(tk.Tk):
         ttk.Entry(frm, textvariable=self.entry_var).grid(row=r, column=1, sticky="ew", **pad)
         ttk.Label(frm, text="ex : src/main.py", foreground="gray").grid(row=r, column=2, **pad)
         r += 1
-        ttk.Checkbutton(frm, text="Application sans fenêtre console (GUI)",
-                        variable=self.win_var).grid(row=r, column=1, sticky="w", **pad)
+        ttk.Label(frm, text="Fenêtre console (CMD) :").grid(row=r, column=0, sticky="w", **pad)
+        ttk.Combobox(frm, textvariable=self.win_var, values=CONSOLE_CHOICES,
+                     state="readonly", width=24).grid(row=r, column=1, sticky="w", **pad)
 
         bar = ttk.Frame(self)
         bar.pack(fill="x", padx=10)
@@ -124,7 +126,7 @@ class App(tk.Tk):
         opts = Options(name=self.name_var.get().strip() or "app",
                        entry=self.entry_var.get().strip(),
                        icon=self.icon_var.get().strip(),
-                       windowed=self.win_var.get())
+                       windowed={0: None, 1: True, 2: False}[CONSOLE_CHOICES.index(self.win_var.get())])
         self.busy = True
         self.btn.configure(state="disabled")
         self.open_btn.configure(state="disabled")
